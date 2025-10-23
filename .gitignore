@@ -1,0 +1,14 @@
+# deps & build
+node_modules/
+dist/
+.vite/
+*.log
+
+# env
+.env
+.env.*.local
+
+# system & editor
+.DS_Store
+.vscode/
+.idea/
