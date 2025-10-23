@@ -1,8 +1,19 @@
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 /** ================= Brand / Config ================= */
 const LOGO_URL = "/logo.svg"; // ← 只要改這裡即可切換 Logo 路徑（支援 svg/png/jpg）
+const DEBUG_CONSOLE_DEFAULT = false; // ← 控制台預設是否顯示（true/false），不再支援網址參數
+const ENABLE_DEV_CONSOLE_UI = false; // ← 是否在畫面上呈現任何控制台 UI（包括右下角按鈕）。設為 false 即完全隱藏
+const ASK_IN_ORDER = true; // ← true：依序 Q1→Q7 出題；false：隨機打亂題目順序
+// ==== 行為調整旗標/常數 ====
+const RANDOM_SEED: number | null = null; // ← 設數字則使用固定亂數種子；null 表示不固定
+const USE_TIME_BASED_SEED = true; // ← 在 RANDOM_SEED 為 null 時，是否使用時間戳作為種子（每次開始不同）
+const TYPE_SPEED_MS = 120; // ← 題目打字速度（毫秒/字）
+const OPTIONS_REVEAL_DELAY_MS = 500; // ← 題目打完到選項出現的延遲（毫秒）
+const PREPARING_ROTATE_INTERVAL_MS = 1700; // ← 「思考中/挑選題目/生成題目」輪替間隔
+const PREPARING_TOTAL_MS = 4500; // ← 準備階段總時間
 
 /** ================= Types ================= */
 type Focus = "氣色" | "體力" | "睡眠" | "消化";
@@ -18,11 +29,11 @@ const OPENING = {
   cta: "開始測驗",
 };
 
-/** ================= Dev Console ================= */
+/** ================= Dev Console (UI 可關閉) ================= */
 type DevLog = { ts: number; msg: string };
 function useDevConsole() {
   const [logs, setLogs] = useState<DevLog[]>([]);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(DEBUG_CONSOLE_DEFAULT);
   const log = (...args: any[]) => {
     const msg = args
       .map((v) => {
@@ -36,19 +47,20 @@ function useDevConsole() {
       .join(" ");
     setLogs((prev) => [...prev, { ts: Date.now(), msg }]);
     try {
+      // 背景 console 可自行保留或移除
       console.log("%c[Wizard]", "color:#06C755;font-weight:bold", msg);
     } catch {}
   };
   const clear = () => setLogs([]);
   return { logs, visible, setVisible, log, clear };
 }
-
 const DevConsolePanel: React.FC<{
   logs: DevLog[];
   visible: boolean;
   setVisible: (v: boolean) => void;
   clear: () => void;
 }> = ({ logs, visible, setVisible, clear }) => {
+  if (!ENABLE_DEV_CONSOLE_UI) return null;
   return (
     <>
       <button
@@ -214,6 +226,27 @@ const Q_VARIANTS: Record<string, QuestionVariant[]> = {
 
 const PREPARING_TEXTS = ["思考中…", "為您挑選關鍵題目…", "生成題目中…"];
 
+/** ================= RNG（固定或時間戳種子） ================= */
+function makeRNG(seed: number) {
+  let t = seed >>> 0;
+  return function rng() {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let rng: () => number = Math.random;
+function resetRNG() {
+  if (typeof RANDOM_SEED === "number") {
+    rng = makeRNG(RANDOM_SEED);
+  } else if (USE_TIME_BASED_SEED) {
+    rng = makeRNG(Date.now() & 0xffffffff);
+  } else {
+    rng = Math.random;
+  }
+}
+
 /** ================= Utils ================= */
 function sumScore(answers: Answer[]): number {
   return answers
@@ -305,11 +338,13 @@ function cleanLabel(s: string) {
   if (c >= 65 && c <= 90 && s.length > 1 && s[1] === " ") return s.slice(2);
   return s;
 }
+
+/** ================= 題目變體 + 順序控制 ================= */
 function buildActiveQuestions(): Question[] {
   return QUESTIONS_7.map((q) => {
     const variants = Q_VARIANTS[q.id as keyof typeof Q_VARIANTS];
     if (!variants) return q;
-    const v = variants[Math.floor(Math.random() * variants.length)];
+    const v = variants[Math.floor(rng() * variants.length)];
     const keys = q.options.map((o) => o.key);
     const opts: Option[] = v.options.map((o, i) => ({
       key: keys[i] || String.fromCharCode(65 + i),
@@ -318,6 +353,18 @@ function buildActiveQuestions(): Question[] {
     }));
     return { id: q.id, title: v.title, options: opts };
   });
+}
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function buildActiveQuestionsOrdered(askInOrder: boolean): Question[] {
+  const mapped = buildActiveQuestions();
+  return askInOrder ? mapped : shuffle(mapped);
 }
 
 /** ================= Typewriter ================= */
@@ -355,18 +402,25 @@ export default function App() {
   const [questions, setQuestions] = useState<Question[]>(QUESTIONS_7);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [logoOk, setLogoOk] = useState(true);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
 
   // Dev Console
   const { logs, visible, setVisible, log, clear } = useDevConsole();
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(location.search);
-      if (params.get("debug") === "1") setVisible(true);
-    } catch {}
+    setVisible(DEBUG_CONSOLE_DEFAULT);
   }, [setVisible]);
 
   useEffect(() => {
     document.title = "神農原養 — AI靈膳魔導師";
+  }, []);
+
+  // measure header height
+  useEffect(() => {
+    const update = () => setHeaderH(headerRef.current?.getBoundingClientRect().height || 0);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   // Auto scroll like chat
@@ -381,7 +435,8 @@ export default function App() {
   }, [answers.length, idx, phase, questionTyped, showOptions]);
 
   const start = () => {
-    setQuestions(buildActiveQuestions());
+    resetRNG();
+    setQuestions(buildActiveQuestionsOrdered(ASK_IN_ORDER));
     setAnswers([]);
     setIdx(0);
     setQuestionTyped(false);
@@ -399,12 +454,12 @@ export default function App() {
     setPreparingIdx(0);
     const rot = setInterval(
       () => setPreparingIdx((i) => (i + 1) % PREPARING_TEXTS.length),
-      1400
+      PREPARING_ROTATE_INTERVAL_MS
     );
     const t = setTimeout(() => {
       clearInterval(rot);
       setPhase("asking");
-    }, 3800);
+    }, PREPARING_TOTAL_MS);
     return () => {
       clearInterval(rot);
       clearTimeout(t);
@@ -422,7 +477,7 @@ export default function App() {
   // After question finishes typing, reveal options
   useEffect(() => {
     if (!questionTyped) return;
-    const t = setTimeout(() => setShowOptions(true), 250);
+    const t = setTimeout(() => setShowOptions(true), OPTIONS_REVEAL_DELAY_MS);
     return () => clearTimeout(t);
   }, [questionTyped, idx]);
 
@@ -483,41 +538,47 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-white text-gray-900">
-      {/* Dev Console Floating */}
+      {/* Dev Console Floating (conditionally rendered) */}
       <DevConsolePanel logs={logs} visible={visible} setVisible={setVisible} clear={clear} />
 
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      {/* ===== Fixed Header at very top ===== */}
+      <div ref={headerRef} className="fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200">
+        <div className="mx-auto max-w-3xl px-4 md:px-6 py-3 md:py-4">
+          <div className="flex items-center gap-3">
+            {logoOk ? (
+              <img src={LOGO_URL} alt="logo" className="h-6 w-auto" onError={() => setLogoOk(false)} />
+            ) : (
+              <div className="h-6 w-6 rounded bg-gray-900 text-white flex items-center justify-center text-[10px] font-bold">LOGO</div>
+            )}
+            <div>
+              <h1 className="text-base md:text-lg font-semibold leading-tight">神農原養 — AI靈膳魔導師</h1>
+              <p className="text-xs text-gray-500">專屬食用攻略與藥膳搭配</p>
+            </div>
+          </div>
+          <div
+            className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={progressPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="h-full bg-gray-800" style={{ width: progressPct + "%", transition: "width .3s ease" }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Main container placed below the fixed header */}
+      <div className="mx-auto max-w-3xl px-4 pt-4 pb-8" style={{ paddingTop: headerH + 16 }}>
         <div className="rounded-2xl bg-white border border-gray-200 p-0 shadow-sm">
-          {/* Scroll Container with sticky header inside */}
+          {/* Scroll Container */}
           <div
             ref={scrollRef}
             className="p-4 md:p-6 space-y-3 overflow-y-auto no-scrollbar"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)", maxHeight: "70vh" }}
+            style={{
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
+              height: `calc(100dvh - ${headerH + 64}px)`,
+            }}
           >
-            {/* Sticky top header (logo + titles + progress) */}
-            <div className="sticky top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 md:py-4 bg-white/90 backdrop-blur border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                {logoOk ? (
-                  <img src={LOGO_URL} alt="logo" className="h-6 w-auto" onError={() => setLogoOk(false)} />
-                ) : (
-                  <div className="h-6 w-6 rounded bg-gray-900 text-white flex items-center justify-center text-[10px] font-bold">LOGO</div>
-                )}
-                <div>
-                  <h1 className="text-base md:text-lg font-semibold leading-tight">神農原養 — AI靈膳魔導師</h1>
-                  <p className="text-xs text-gray-500">專屬食用攻略與藥膳搭配</p>
-                </div>
-              </div>
-              <div
-                className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden"
-                role="progressbar"
-                aria-valuenow={progressPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div className="h-full bg-gray-800" style={{ width: progressPct + "%", transition: "width .3s ease" }} />
-              </div>
-            </div>
-
             {/* Conversation / Flow */}
             <AnimatePresence initial={false}>
               {phase === "intro" && (
@@ -594,7 +655,7 @@ export default function App() {
                       <div className="w-full flex justify-start">
                         <div className="max-w-[85%] rounded-2xl p-4 shadow-sm bg-white">
                           <div className="mt-1 text-base font-medium">
-                            <Typewriter text={questions[idx].title} startKey={`${idx}-${phase}`} speed={95} onDone={() => setQuestionTyped(true)} />
+                            <Typewriter text={questions[idx].title} startKey={`${idx}-${phase}`} speed={TYPE_SPEED_MS} onDone={() => setQuestionTyped(true)} />
                           </div>
                         </div>
                       </div>
@@ -677,6 +738,12 @@ export default function App() {
                         {focus && <p className="text-gray-800">{focusTip(focus)}</p>}
                         <div className="text-sm text-gray-600">點擊下方按鈕加入官方 LINE，獲取更多資訊</div>
                         <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-gray-200 hover:shadow transition"
+                            onClick={start}
+                          >
+                            再測一次
+                          </button>
                           <a
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-gray-200 hover:shadow transition"
                             href={lineDeepLink}

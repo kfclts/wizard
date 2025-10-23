@@ -2,6 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide scrollbars but keep scrollability */
+/* Hide scrollbar helper */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
