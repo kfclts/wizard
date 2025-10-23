@@ -79,5 +79,3 @@ npm run preview
 - 文案與語錄：`profileByScore` 與 `focusTip` 在 `src/logic.ts`。
 - 品牌/樣式：Tailwind className 或新增 CSS。
 
----
-若你要我幫你把 **官網連結** 或 **導購連結** 接上，或要我改成 **多語**/**AB 測試**，請開 Issue 或直接留言給我。
