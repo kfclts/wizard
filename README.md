@@ -1,81 +1,54 @@
-# 神農原養 — 靈膳魔導師（7 題配分版）
+# 神農原養 — AI靈膳魔導師（前端專案）
 
-單頁應用（SPA）：React + TypeScript + Tailwind + Framer Motion + qrcode（DataURL）。  
-特色：一問一答、Q1–Q6 配分 → 自動判定體質、Q7 個人化建議、結果卡 + 分享連結 + QR。
+互動式 7 題問答，聊天流體驗：題目逐字打字、題目打完才出選項、隨機變體、分析動效、結果顯示圓形分數徽章、LINE 直開（手機帶入訊息）。
 
-## 事前工作
-```shell=
-###	•	Node：^18.17.0 或 ^20.9.0（LTS 版最穩）
-###	•	npm：>= 9（Node 18 內建 npm 9；Node 20 內建 npm 10）
+## 下載這個專案
+在本對話中點擊下方的 **下載 ZIP** 連結。
 
-
-$ npm -v
-10.8.2
-$ node -v
-v22.5.1
-
-$ npm i -D @vitejs/plugin-react
-
-```
-
-## 開發
+## 本機執行
+需要 Node.js 18+
 ```bash
-
 npm i
 npm run dev
 ```
+打開瀏覽器：`http://localhost:5173`
 
-## 測試（Vitest）
-```bash
-npm run test
-```
+## 修改 Logo（左上角）
+1. 用你的檔案覆蓋 `public/logo.svg`（或改名 logo.png 也可以）。
+2. 若要顯示 logo，請在 `src/App.tsx` 的標題區塊改成：
+   ```tsx
+   <div className="flex items-center gap-3">
+     <img src="/logo.svg" alt="logo" className="h-6 w-auto" />
+     <div>
+       <h1 className="text-base md:text-lg font-semibold leading-tight">神農原養 — AI靈膳魔導師</h1>
+       <p className="text-xs text-gray-500">專屬食用攻略與藥膳搭配</p>
+     </div>
+   </div>
+   ```
 
-## 打包
+## 修改配色
+- 在 `tailwind.config.js` 中調整品牌色：
+  ```js
+  colors: { brand: { DEFAULT: "#111827" } }
+  ```
+- 進度條顏色：將 `src/App.tsx` 內 `bg-gray-800` 改成 `bg-brand` 或你喜歡的顏色類名。
+- 按鈕顏色：找到 `<a className="inline-flex ...">`，自行加入 `bg-brand text-white` 等類名。
+
+## 題庫與出題
+- 固定配分在 `QUESTIONS_7`；
+- 文案變體在 `Q_VARIANTS`（Q1~Q6 每次開始會隨機挑一組）；
+- Q7 決定 **重點改善** 類別（氣色/體力/睡眠/消化）。
+
+## LINE 連結（手機帶入分數 / 桌面加好友）
+- 手機（iOS/Android）：`https://line.me/R/oaMessage/%40081cvuqw/?<兩位數分數>`
+- 桌面：`https://line.me/ti/p/%40081cvuqw`
+- 若要改用你的 LINE ID，請把 `%40081cvuqw` 改成你的 LINE 官方帳號（記得 `@` 要改 `%40`）。
+
+## 打包與部署
 ```bash
 npm run build
-npm run preview
 ```
+上傳 `dist/` 到任意靜態主機（Netlify、Vercel、GitHub Pages）即可。
 
-## 部署建議
-
-### Netlify
-1. 連結 Git repo → New site from Git
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-4. 新增 `netlify.toml`（已處理 SPA 重寫）：
-   ```toml
-   [[redirects]]
-     from = "/*"
-     to = "/index.html"
-     status = 200
-   ```
-
-### Vercel
-1. Import 專案 → Framework: **Vite**
-2. Build Command: `vite build`（或 `npm run build`）
-3. Output: `dist`
-4. 新增 `vercel.json`（可選，確保 SPA 重寫）：
-   ```json
-   { "rewrites": [ { "source": "/(.*)", "destination": "/" } ] }
-   ```
-
-### GitHub Pages
-1. 若部署在 `https://USER.github.io/REPO`，請在 `vite.config.ts` 設定：
-   ```ts
-   export default defineConfig({ base: '/REPO/' })
-   ```
-2. 建議使用 GitHub Actions 或 `npm run build` 後把 `dist/` 推到 `gh-pages` 分支。
-
-### Nginx（或任何靜態伺服器）
-- 指向 `dist/` 作為根目錄，並設定 SPA fallback：
-  ```nginx
-  location / {
-    try_files $uri /index.html;
-  }
-  ```
-
-## 自訂
-- 問題與配分：編輯 `src/App.tsx` 內的 `QUESTIONS_7`。
-- 文案與語錄：`profileByScore` 與 `focusTip` 在 `src/logic.ts`。
-- 品牌/樣式：Tailwind className 或新增 CSS。
-
+---
+Made with React + Vite + Tailwind + Framer Motion.
