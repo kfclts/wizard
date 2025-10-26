@@ -1,24 +1,33 @@
-# 神農原養 — AI靈膳魔導師
 
-Vite + React + TypeScript + Tailwind + Framer Motion
+# 神農原養 — AI靈膳魔導師（Gauge 版）
 
-## 安裝與啟動
+互動式 7 題問答，產出體質分析與建議，並以圓形 Gauge 動畫顯示氣血分數。
+
+## 開發環境
+- Vite + React + TypeScript
+- TailwindCSS
+- Framer Motion
+
+## 快速開始
 ```bash
 npm i
 npm run dev
-# 打開 http://localhost:5173
 ```
 
-## 可調整參數（`src/App.tsx` 開頭）
-- `LOGO_URL`：Logo 圖檔位置（預設 `/logo.svg`）
-- `ENABLE_DEV_CONSOLE_UI`：是否顯示控制台 UI（預設 `false` 完全隱藏）
-- `ASK_IN_ORDER`：`true` 依序 Q1→Q7；`false` 題目順序洗牌
-- `RANDOM_SEED`：固定亂數種子（數字）或 `null`（不固定）
-- `USE_TIME_BASED_SEED`：當 `RANDOM_SEED=null` 時是否用時間戳產生種子
-- `TYPE_SPEED_MS`：題目打字速度（毫秒/字）
-- `OPTIONS_REVEAL_DELAY_MS`：題目打完至選項出現的延遲
-- `PREPARING_ROTATE_INTERVAL_MS`：準備階段輪播間隔
-- `PREPARING_TOTAL_MS`：準備階段總時長
+## 可調整參數（`src/App.tsx` 檔案頂部）
+- `LOGO_URL`：左上角品牌 Logo 圖檔路徑
+- `ASK_IN_ORDER`：`true` 依序 Q1→Q7；`false` 問題隨機排序
+- `TYPE_SPEED_MS`：打字機速度（毫秒/字）
+- `OPTIONS_REVEAL_DELAY_MS`：問題打完後多久顯示選項
+- `PREP_ROTATE_MS` / `PREP_TOTAL_MS`：準備階段文案輪替/總時長
+- `MAX_SCORE`：Gauge 正規化的最高分（預設 21）
 
-## 部署到 Netlify
-直接將整個專案資料夾上傳，或連結 Git 儲存庫後設定 build command：`npm run build`，publish 目錄：`dist`。
+## 顏色（Tailwind）
+於 `tailwind.config.js` 調整：
+- `brand-primary`：#204677
+- `brand-accent`：#DE8634
+- `brand-soft`：#ECDA73
+
+## 注意
+- 「再測一次」按鈕 **無 icon**（只有純文字）。
+- LINE 連結：手機使用 `oaMessage` 自動帶入分數，桌機導向官方頁面。
