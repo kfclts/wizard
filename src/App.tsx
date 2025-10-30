@@ -1,35 +1,34 @@
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-// CIS colors
+// ── CIS Colors ────────────────────────────────────────────────────────────────
 const BRAND_PRIMARY = '#204677';
 const BRAND_ACCENT  = '#DE8634';
 const BRAND_SOFT    = '#ECDA73';
 
-// Config
-const LOGO_URL = '/logo.svg';
-const ASK_IN_ORDER = true;          // true 依序 Q1→Q7；false 隨機出題
-const TYPE_SPEED_MS = 120;          // 打字速度毫秒
-const OPTIONS_REVEAL_DELAY_MS = 600;// 問題打完後多久顯示選項
-const PREP_ROTATE_MS = 2200;        // 準備中文提示輪替速度
-const PREP_TOTAL_MS = 5200;         // 準備階段總時長
-const MAX_SCORE = 21;               // 規格範圍的上限，用於 Gauge 正規化
+// ── Config ───────────────────────────────────────────────────────────────────
+const LOGO_URL = '/logo.svg';        // 之後你可換成企業 LOGO
+const ASK_IN_ORDER = true;           // true 依序 Q1→Q7；false 隨機出題
+const TYPE_SPEED_MS = 120;           // 打字速度（毫秒/字）
+const OPTIONS_REVEAL_DELAY_MS = 600; // 問題打完後多久顯示選項
+const PREP_ROTATE_MS = 2200;         // 準備中文提示輪替速度
+const PREP_TOTAL_MS = 5200;          // 準備階段總時長
+const MAX_SCORE = 21;                // Gauge 正規化上限
 
-// Types
+// ── Types ────────────────────────────────────────────────────────────────────
 type Focus = '氣色' | '體力' | '睡眠' | '消化';
 type Option = { key: string; label: string; score?: number; focus?: Focus };
 type Question = { id: string; title: string; options: Option[] };
 type Answer = { qid: string; title: string; option: Option };
 
-// Opening
+// ── Opening ──────────────────────────────────────────────────────────────────
 const OPENING = {
   body:
     '透過幾題簡單問答，靈膳魔導師將為您分析體質屬性，並依結果推薦專屬燕窩食用攻略與安永鮮物藥膳湯品搭配建議，打造您的每日靈膳儀式感。',
   cta: '開始測驗',
 };
 
-// Base questions
+// ── Base Questions ───────────────────────────────────────────────────────────
 const QUESTIONS_7: Question[] = [
   { id: 'Q1', title: '您最近氣色如何？', options: [
       { key: 'A', label: '紅潤光澤', score: 3 },
@@ -69,7 +68,7 @@ const QUESTIONS_7: Question[] = [
     ] },
 ];
 
-// Variants (Q1~Q6)
+// ── Variants (Q1~Q6) ────────────────────────────────────────────────────────
 type QuestionVariant = { title: string; options: { label: string; score?: number }[] };
 const Q_VARIANTS: Record<string, QuestionVariant[]> = {
   Q1: [
@@ -101,7 +100,7 @@ const Q_VARIANTS: Record<string, QuestionVariant[]> = {
 
 const PREPARING_TEXTS = ['思考中…', '為您挑選關鍵題目…', '生成題目中…'];
 
-// Utils
+// ── Utils ───────────────────────────────────────────────────────────────────
 function sumScore(answers: Answer[]): number {
   return answers.filter(a => a.qid !== 'Q7').reduce((acc, a) => acc + (a.option.score ?? 0), 0);
 }
@@ -162,7 +161,7 @@ function focusTip(focus?: Focus): string | undefined {
 }
 function shuffle<T>(arr: T[]): T[] { const a = arr.slice(); for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-// Typewriter
+// ── Typewriter ───────────────────────────────────────────────────────────────
 const Typewriter: React.FC<{ text: string; speed?: number; startKey?: string; className?: string; onDone?: ()=>void; }>
 = ({ text, speed = TYPE_SPEED_MS, startKey, className, onDone }) => {
   const [i, setI] = useState(0);
@@ -175,7 +174,7 @@ const Typewriter: React.FC<{ text: string; speed?: number; startKey?: string; cl
   return <span className={className}>{text.slice(0, i)}</span>;
 };
 
-// Animated number helper (00 → XX)
+// ── AnimatedNumber (00 → XX) ────────────────────────────────────────────────
 const AnimatedNumber: React.FC<{ value: number; duration?: number; className?: string }>
 = ({ value, duration = 1000, className }) => {
   const [display, setDisplay] = useState(0);
@@ -196,7 +195,7 @@ const AnimatedNumber: React.FC<{ value: number; duration?: number; className?: s
   return <span className={className}>{padded}</span>;
 };
 
-// Circular Gauge component
+// ── Circular Gauge ──────────────────────────────────────────────────────────
 const ScoreGauge: React.FC<{ value: number; max?: number; size?: number; stroke?: number }>
 = ({ value, max = MAX_SCORE, size = 144, stroke = 10 }) => {
   const r = (size - stroke) / 2;
@@ -228,6 +227,7 @@ const ScoreGauge: React.FC<{ value: number; max?: number; size?: number; stroke?
   );
 };
 
+// ── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [phase, setPhase] = useState<'intro'|'preparing'|'asking'|'analyzing'|'result'>('intro');
   const [idx, setIdx] = useState(0);
@@ -235,7 +235,6 @@ export default function App() {
   const [questionTyped, setQuestionTyped] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [preparingIdx, setPreparingIdx] = useState(0);
-  const [analyzingStep, setAnalyzingStep] = useState(0);
   const [questions, setQuestions] = useState<Question[]>(QUESTIONS_7);
   const [logoOk, setLogoOk] = useState(true);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -243,50 +242,72 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.title = '神農原養 — AI靈膳魔導師'; }, []);
-  useEffect(() => { const update=()=> setHeaderH(headerRef.current?.getBoundingClientRect().height||0); update(); window.addEventListener('resize',update); return()=>window.removeEventListener('resize',update); },[]);
-  useEffect(() => { const el=scrollRef.current; if(!el) return; try{ el.scrollTo({top:el.scrollHeight,behavior:'smooth'});}catch{ el.scrollTop=el.scrollHeight;} },[answers.length, idx, phase, questionTyped, showOptions]);
+  useEffect(() => {
+    const update = () => setHeaderH(headerRef.current?.getBoundingClientRect().height || 0);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  useEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    try { el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }
+    catch { el.scrollTop = el.scrollHeight; }
+  }, [answers.length, idx, phase, questionTyped, showOptions]);
 
   function withVariants(): Question[] {
     return QUESTIONS_7.map(q => {
       const vs = Q_VARIANTS[q.id as keyof typeof Q_VARIANTS];
       if (!vs) return q;
-      const v = vs[Math.floor(Math.random()*vs.length)];
-      const opts: Option[] = v.options.map((o,i)=>({ key: q.options[i]?.key ?? String.fromCharCode(65+i), label: o.label, score: o.score }));
+      const v = vs[Math.floor(Math.random() * vs.length)];
+      const opts: Option[] = v.options.map((o, i) => ({
+        key: q.options[i]?.key ?? String.fromCharCode(65 + i),
+        label: o.label,
+        score: o.score
+      }));
       return { id: q.id, title: v.title, options: opts };
     });
   }
-  function start(){
+  function start() {
     const base = withVariants();
     const arr = ASK_IN_ORDER ? base : shuffle(base);
-    setQuestions(arr); setAnswers([]); setIdx(0); setQuestionTyped(false); setShowOptions(false); setPhase('preparing');
+    setQuestions(arr);
+    setAnswers([]);
+    setIdx(0);
+    setQuestionTyped(false);
+    setShowOptions(false);
+    setPhase('preparing');
   }
 
   useEffect(() => {
     if (phase !== 'preparing') return;
     setQuestionTyped(false); setShowOptions(false); setPreparingIdx(0);
-    const rot = setInterval(() => setPreparingIdx(i => (i+1)%PREPARING_TEXTS.length), PREP_ROTATE_MS);
+    const rot = setInterval(() => setPreparingIdx(i => (i + 1) % PREPARING_TEXTS.length), PREP_ROTATE_MS);
     const t = setTimeout(() => { clearInterval(rot); setPhase('asking'); }, PREP_TOTAL_MS);
     return () => { clearInterval(rot); clearTimeout(t); };
   }, [phase]);
 
-  useEffect(()=>{ if(phase==='asking'){ setQuestionTyped(false); setShowOptions(false);} },[idx,phase]);
-  useEffect(()=>{ if(!questionTyped) return; const t=setTimeout(()=> setShowOptions(true), OPTIONS_REVEAL_DELAY_MS); return()=>clearTimeout(t); },[questionTyped, idx]);
+  useEffect(() => { if (phase === 'asking') { setQuestionTyped(false); setShowOptions(false); } }, [idx, phase]);
+  useEffect(() => {
+    if (!questionTyped) return;
+    const t = setTimeout(() => setShowOptions(true), OPTIONS_REVEAL_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [questionTyped, idx]);
 
   const onChoose = (q: Question, opt: Option) => {
     setAnswers(prev => [...prev, { qid: q.id, title: q.title, option: opt }]);
-    setTimeout(()=>{ (idx+1>=questions.length)? setPhase('analyzing') : setIdx(i=>i+1); }, 200);
+    setTimeout(() => { (idx + 1 >= questions.length) ? setPhase('analyzing') : setIdx(i => i + 1); }, 200);
   };
 
-  const total = useMemo(()=> sumScore(answers), [answers]);
-  const focus = useMemo(()=> pickFocus(answers), [answers]);
-  const prof  = useMemo(()=> profileByScore(total||0), [total]);
-  const score2 = useMemo(()=> String(total).padStart(2,'0'), [total]);
+  const total = useMemo(() => sumScore(answers), [answers]);
+  const focus = useMemo(() => pickFocus(answers), [answers]);
+  const prof  = useMemo(() => profileByScore(total || 0), [total]);
+  const score2 = useMemo(() => String(total).padStart(2, '0'), [total]);
 
   const lineDeepLink = useMemo(() => {
     const LINE_ID_ENC = '%40081cvuqw';
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
     const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-    const msg = `${score2}`;
+    const msg = `${score2}`; // 只帶分數，例如 09
     const mobile = `https://line.me/R/oaMessage/${LINE_ID_ENC}/?${encodeURIComponent(msg)}`;
     const desktop = `https://line.me/ti/p/${LINE_ID_ENC}`;
     return isMobile ? mobile : desktop;
@@ -294,10 +315,8 @@ export default function App() {
 
   useEffect(() => {
     if (phase !== 'analyzing') return;
-    setAnalyzingStep(0);
-    const t1 = setTimeout(()=> setAnalyzingStep(1), 1000);
-    const t2 = setTimeout(()=> setPhase('result'), 2000);
-    return ()=> { clearTimeout(t1); clearTimeout(t2); };
+    const t2 = setTimeout(() => setPhase('result'), 2000);
+    return () => { clearTimeout(t2); };
   }, [phase]);
 
   const totalQuestions = questions.length;
@@ -305,12 +324,12 @@ export default function App() {
     const isDone = phase === 'result' || phase === 'analyzing';
     const answered = isDone ? totalQuestions : answers.length;
     if (totalQuestions <= 0) return 0;
-    return Math.max(0, Math.min(100, Math.round((answered/totalQuestions)*100)));
+    return Math.max(0, Math.min(100, Math.round((answered / totalQuestions) * 100)));
   }, [answers.length, phase, totalQuestions]);
 
   return (
     <div className="min-h-[100dvh] bg-white text-gray-900">
-      {/* Fixed Header (no border) */}
+      {/* Header */}
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 md:px-6 py-3 md:py-4">
           <div className="flex items-center gap-3">
@@ -333,14 +352,24 @@ export default function App() {
       {/* Main */}
       <div className="mx-auto max-w-3xl px-4 pt-4 pb-8" style={{ paddingTop: headerH + 16 }}>
         <div className="rounded-2xl bg-white shadow-sm">
-          <div ref={scrollRef} className="p-4 md:p-6 space-y-3 overflow-y-auto no-scrollbar" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', height: `calc(100dvh - ${headerH + 64}px)` }}>
+          <div
+            ref={scrollRef}
+            className="p-4 md:p-6 space-y-3 overflow-y-auto no-scrollbar"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', height: `calc(100dvh - ${headerH + 64}px)` }}
+          >
             <AnimatePresence initial={false}>
               {phase === 'intro' && (
                 <motion.div key="intro" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
                   <div className="w-full flex justify-start">
                     <div className="max-w-[85%] rounded-2xl p-4 shadow-sm bg-white">
                       <p className="mt-2">{OPENING.body}</p>
-                      <button className="px-4 py-2 rounded-xl shadow-sm border transition" style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }} onClick={start}>{OPENING.cta}</button>
+                      <button
+                        className="px-4 py-2 rounded-xl shadow-sm border transition"
+                        style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }}
+                        onClick={start}
+                      >
+                        {OPENING.cta}
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -389,7 +418,12 @@ export default function App() {
                       {showOptions && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {questions[idx].options.map((opt) => (
-                            <button key={opt.key} className="px-4 py-2 rounded-xl shadow-sm border transition text-left text-base" style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }} onClick={() => onChoose(questions[idx], opt)}>
+                            <button
+                              key={opt.key}
+                              className="px-4 py-2 rounded-xl shadow-sm border transition text-left text-base"
+                              style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }}
+                              onClick={() => onChoose(questions[idx], opt)}
+                            >
                               {opt.label}
                             </button>
                           ))}
@@ -443,13 +477,20 @@ export default function App() {
                             <ScoreGauge value={total} max={MAX_SCORE} />
                           </div>
                         </div>
-                        <div className="text-base md:text-lg font-semibold" style={{ color: BRAND_PRIMARY }}>靈膳魔導師語錄：{prof.quote}</div>
+                        <div className="text-base md:text-lg font-semibold" style={{ color: BRAND_PRIMARY }}>
+                          靈膳魔導師語錄：{prof.quote}
+                        </div>
                         <p className="text-gray-800">{prof.feature}</p>
                         {focus && <p className="text-gray-800">{focusTip(focus)}</p>}
                         <div className="text-sm text-gray-700">點擊下方按鈕加入官方 LINE，獲取更多資訊</div>
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition text-base" style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }} onClick={start}>再測一次</button>
-                          <a className="inline-flex items-center gap-2 px-4 py-2 rounded-XL shadow-sm border transition text-white text-base" style={{ background: BRAND_ACCENT, borderColor: BRAND_ACCENT }} href={lineDeepLink} target="_blank" rel="noreferrer">
+                          <a
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition text-white text-base"
+                            style={{ background: BRAND_ACCENT, borderColor: BRAND_ACCENT }}
+                            href={lineDeepLink}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden>
                               <rect x="2" y="2" width="60" height="60" rx="14" ry="14" fill="#06C755" />
                               <text x="32" y="42" fontSize="22" fontFamily="Arial, Helvetica, sans-serif" fill="#fff" textAnchor="middle">LINE</text>
