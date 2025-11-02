@@ -1,30 +1,26 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+// CIS Colors
+const BRAND_PRIMARY = '#204677'
+const BRAND_ACCENT  = '#DE8634'
+const BRAND_SOFT    = '#ECDA73'
 
-// ── CIS Colors ────────────────────────────────────────────────────────────────
-const BRAND_PRIMARY = '#204677';
-const BRAND_ACCENT  = '#DE8634';
-const BRAND_SOFT    = '#ECDA73';
+// Config
+const LOGO_URL = '/logo.svg'
+const DEFAULT_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="12" fill="#204677"/><circle cx="32" cy="32" r="16" fill="none" stroke="#ECDA73" stroke-width="4"/><path d="M20 40c6-4 18-4 24 0" stroke="#DE8634" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`
+const DEFAULT_LOGO_DATA_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(DEFAULT_LOGO_SVG)
 
-// ── Config ───────────────────────────────────────────────────────────────────
-const LOGO_URL = '/logo.svg'; // public/logo.svg
-const ASK_IN_ORDER = true;     // true 依序 Q1→Q7；false 隨機出題
-const TYPE_SPEED_MS = 130;     // 打字速度（毫秒/字）
-const OPTIONS_REVEAL_DELAY_MS = 700; // 題目打完後多久顯示選項
-const PREP_ROTATE_MS = 2200;   // 準備中文提示輪替速度
-const PREP_TOTAL_MS = 5200;    // 準備階段總時長
-const MAX_SCORE = 21;          // Gauge 滿分
+const ASK_IN_ORDER = true                // true：依序 Q1→Q7；false：隨機
+const TYPE_SPEED_MS = 130               // 打字速度（毫秒/字）
+const OPTIONS_REVEAL_DELAY_MS = 700     // 題目打完後多久顯示選項
+const PREP_ROTATE_MS = 2200             // 準備中文提示輪替速度
+const PREP_TOTAL_MS = 5200              // 準備階段總時長
+const MAX_SCORE = 21                    // Gauge 滿分
+const LINE_URL = 'https://line.me/R/ti/p/%40081cvuqw' // 官方 LINE 連結（不帶分數）
 
-// 備援 LOGO（當 /logo.svg 載入失敗時使用）
-const DEFAULT_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="12" fill="#204677"/><circle cx="32" cy="32" r="16" fill="none" stroke="#ECDA73" stroke-width="4"/><path d="M20 40c6-4 18-4 24 0" stroke="#DE8634" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
-const DEFAULT_LOGO_DATA_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(DEFAULT_LOGO_SVG);
-
-// ── 題庫 ─────────────────────────────────────────────────────────────────────
-type Opt = { key: string; label: string; score?: number; focus?: string; };
-type Q = { id: string; title: string; options: Opt[]; };
-
-const QUESTIONS_7: Q[] = [
+// 題庫
+const QUESTIONS_7 = [
   { id: 'Q1', title: '您最近氣色如何？', options: [
       { key: 'A', label: '紅潤光澤', score: 3 },
       { key: 'B', label: '普通', score: 2 },
@@ -61,10 +57,10 @@ const QUESTIONS_7: Q[] = [
       { key: 'C', label: '睡眠', focus: '睡眠' },
       { key: 'D', label: '消化', focus: '消化' },
     ] },
-];
+]
 
-// 題目變體（Q1~Q6）
-const Q_VARIANTS: Record<string, { title: string; options: { label: string; score: number }[] }[]> = {
+// 問題文案變體
+const Q_VARIANTS = {
   Q1: [
     { title: '您最近的氣色狀況？', options: [{ label: '容光煥發', score: 3 }, { label: '普通', score: 2 }, { label: '偏蒼白或蠟黃', score: 1 }] },
     { title: '此刻的氣色表現如何？', options: [{ label: '紅潤有光澤', score: 3 }, { label: '尚可', score: 2 }, { label: '蒼白乾黃', score: 1 }] },
@@ -84,116 +80,76 @@ const Q_VARIANTS: Record<string, { title: string; options: { label: string; scor
   Q6: [
     { title: '最近身體的整體感受？', options: [{ label: '輕鬆有精神', score: 3 }, { label: '有時頭暈或氣短', score: 2 }, { label: '容易疲倦', score: 1 }] },
   ],
-};
+}
 
-const PREPARING_TEXTS = ['思考中…', '為您挑選關鍵題目…', '生成題目中…'];
+const PREPARING_TEXTS = ['思考中…', '為您挑選關鍵題目…', '生成題目中…']
 
-// Utils
-const sumScore = (answers: any[]) => answers.filter(a => a.qid !== 'Q7').reduce((acc,a)=>acc+(a.option.score||0),0);
-const pickFocus = (answers: any[]) => (answers.find(a=>a.qid==='Q7')||{}).option?.focus;
-const shuffleArr = <T,>(arr: T[]) => { const a = arr.slice(); for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; };
+const sumScore = (answers) => answers.filter(a => a.qid !== 'Q7').reduce((acc,a)=>acc+(a.option.score||0),0)
+const pickFocus = (answers) => (answers.find(a=>a.qid==='Q7')||{}).option?.focus
+const shuffleArr = (arr) => { const a = arr.slice(); for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-function profileByScore(total: number){
+function profileByScore(total){
   if (total >= 18) return {
     key: '✨ 旭日曜靈系（Radiant Spirit）',
     range: '18–21分',
     feature: '天生靈氣飽滿、能量流轉如光。靈膳只需溫潤平衡，維持明亮與和諧。特徵： 體質均衡，氣血旺盛，但需持續保養以維持亮麗光澤。',
-    bird: '凰啼初盞',
-    plan: '每週 2–3 次，早晨空腹食用「凰啼初盞」；可加入少量安永鮮物「山藥竹笙排骨湯」作為氣養搭配。',
     quote: '持盈保泰，乃養生之道。氣滿，則神明自華。',
-    soups: ['山藥竹笙排骨湯'],
-    time: '早晨空腹',
-  };
+  }
   if (total >= 13) return {
     key: '🌸 晨露花靈系（Bloom Spirit）',
     range: '13–17分',
     feature: '體能易消散、靈氣需滋養。以花果與燕窩為伴，重新喚醒生命之息。特徵： 容易疲倦、頭暈，女性常有氣色不佳現象。',
-    bird: '凰啼初盞',
-    plan: '每週 3–4 次，晚餐後 1 小時食用「凰啼初盞」；可搭配安永鮮物「黨蔘蓮子雞湯」。',
     quote: '氣為血帥，血為氣母；兩虛之時，燕窩溫養最宜。',
-    soups: ['黨蔘蓮子雞湯'],
-    time: '晚餐後',
-  };
+  }
   if (total >= 9) return {
     key: '🔥 赤焰月靈系（Crimson Moon Spirit）',
     range: '9–12分',
     feature: '內心燃燒、思緒易躁。以潤養之湯鎮月火，讓能量回歸柔光。特徵： 熬夜多、睡眠差、口乾舌燥，容易長痘或燥熱。',
-    bird: '凰啼初盞',
-    plan: '每週 3 次，晚間食用「凰啼初盞」；搭配安永鮮物「山藥竹笙排骨湯」。',
     quote: '夜深時，讓月華與燕窩一同撫平你的燥與火。',
-    soups: ['山藥竹笙排骨湯'],
-    time: '晚間',
-  };
+  }
   if (total >= 7) return {
     key: '🌞 晨曦木靈系（Dawnwood Spirit）',
     range: '7–8分',
     feature: '活力未滿、寒意易生。以根莖靈草溫補陽能，讓朝氣重生。特徵： 手腳冰冷、代謝低、容易疲倦。',
-    bird: '凰啼初盞',
-    plan: '每週 4 次，早晨溫熱食用「凰啼初盞」；搭配安永鮮物「黃耆枸杞雞湯」。',
     quote: '陽升則生，陽退則衰。溫一盞晨光，重啟體內暖流。',
-    soups: ['黃耆枸杞雞湯'],
-    time: '早晨',
-  };
+  }
   return {
     key: '🌿 青藤風靈系（Verdant Wind Spirit）',
     range: '6分以下',
     feature: '情緒易滯、氣脈不暢。以芳香草本舒展身心，讓靈氣自在流轉。特徵： 壓力大、睡不安、情緒起伏、消化不良。',
-    bird: '凰啼初盞',
-    plan: '每週 2–3 次，午後食用「凰啼初盞」；搭配安永鮮物「山藥竹笙排骨湯」。',
     quote: '情緒為氣之主。養氣即養心，心開則百脈順。',
-    soups: ['山藥竹笙排骨湯'],
-    time: '午後',
-  };
+  }
 }
 
-const focusTip = (focus?: string) => {
-  switch (focus) {
-    case '氣色': return '可加強鐵質與優質蛋白來源，並維持規律作息。';
-    case '體力': return '建議早晨或運動後補充，並留意蛋白質與碳水的均衡。';
-    case '睡眠': return '晚間清淡、避免刺激性飲食，搭配安神湯品更佳。';
-    case '消化': return '少量多餐、減少油炸甜食，四神健脾類湯品有助。';
-    default: return undefined;
-  }
-};
+// Typewriter
+function Typewriter({ text, speed=TYPE_SPEED_MS, startKey, className, onDone }){
+  const [i, setI] = useState(0)
+  useEffect(()=>{ setI(0) }, [text, startKey])
+  useEffect(()=>{
+    if (i >= text.length){ onDone && onDone(); return }
+    const id = setTimeout(()=> setI(i+1), speed)
+    return ()=> clearTimeout(id)
+  }, [i, text, speed, onDone])
+  return <span className={className}>{text.slice(0, i)}</span>
+}
 
-// ── Typewriter ───────────────────────────────────────────────────────────────
-const Typewriter: React.FC<{ text: string; speed?: number; startKey?: string; className?: string; onDone?: () => void }> = ({ text, speed = TYPE_SPEED_MS, startKey, className, onDone }) => {
-  const [i, setI] = useState(0);
-  useEffect(() => { setI(0); }, [text, startKey]);
-  useEffect(() => {
-    if (i >= text.length) { onDone && onDone(); return; }
-    const id = setTimeout(() => setI(i + 1), speed);
-    return () => clearTimeout(id);
-  }, [i, text, speed, onDone]);
-  return <span className={className}>{text.slice(0, i)}</span>;
-};
+// Animated number
+function AnimatedNumber({ value, duration=1000, className }){
+  const [display, setDisplay] = useState(0)
+  useEffect(()=>{
+    let raf=0, start=0; const from=0, to=value
+    const step = (t)=>{ if(!start) start=t; const p=Math.min(1,(t-start)/duration); const v=Math.round(from+(to-from)*p); setDisplay(v); if(p<1) raf=requestAnimationFrame(step) }
+    raf = requestAnimationFrame(step); return ()=> cancelAnimationFrame(raf)
+  }, [value, duration])
+  const padded = String(display).padStart(2, '0')
+  return <span className={className}>{padded}</span>
+}
 
-// ── AnimatedNumber ──────────────────────────────────────────────────────────
-const AnimatedNumber: React.FC<{ value: number; duration?: number; className?: string }> = ({ value, duration = 1000, className }) => {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    let raf = 0, start = 0;
-    const from = 0, to = value;
-    const step = (t: number) => {
-      if (!start) start = t;
-      const p = Math.min(1, (t - start) / duration);
-      const v = Math.round(from + (to - from) * p);
-      setDisplay(v);
-      if (p < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [value, duration]);
-  const padded = String(display).padStart(2, '0');
-  return <span className={className}>{padded}</span>;
-};
-
-// ── Circular Gauge ──────────────────────────────────────────────────────────
-const ScoreGauge: React.FC<{ value: number; max?: number; size?: number; stroke?: number }> = ({ value, max = MAX_SCORE, size = 144, stroke = 10 }) => {
-  const r = (size - stroke) / 2;
-  const C = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(1, (max === 0 ? 0 : value / max)));
-  const offset = C * (1 - pct);
+// Circular gauge
+function ScoreGauge({ value, max=MAX_SCORE, size=144, stroke=10 }){
+  const r = (size - stroke) / 2; const C = 2 * Math.PI * r
+  const pct = Math.max(0, Math.min(1, (max === 0 ? 0 : value / max)))
+  const offset = C * (1 - pct)
   return (
     <div style={{ width: size, height: size, position: 'relative' }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
@@ -216,89 +172,73 @@ const ScoreGauge: React.FC<{ value: number; max?: number; size?: number; stroke?
         <AnimatedNumber value={value} className="text-5xl md:text-6xl font-extrabold tracking-wider" />
       </div>
     </div>
-  );
-};
+  )
+}
 
-// ── 主組件 ─────────────────────────────────────────────────────────────────
 export default function App(){
-  const [phase, setPhase] = useState<'intro'|'preparing'|'asking'|'analyzing'|'result'>('intro');
-  const [idx, setIdx] = useState(0);
-  const [answers, setAnswers] = useState<any[]>([]);
-  const [questionTyped, setQuestionTyped] = useState(false);
-  const [optionsForIdx, setOptionsForIdx] = useState<number | null>(null);
-  const [preparingIdx, setPreparingIdx] = useState(0);
-  const [questions, setQuestions] = useState<Q[]>(QUESTIONS_7);
-  const [logoSrc, setLogoSrc] = useState<string>(LOGO_URL);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [phase, setPhase] = useState('intro') // 'intro'|'preparing'|'asking'|'analyzing'|'result'
+  const [idx, setIdx] = useState(0)
+  const [answers, setAnswers] = useState([])
+  const [questionTyped, setQuestionTyped] = useState(false)
+  const [optionsForIdx, setOptionsForIdx] = useState(null)
+  const [preparingIdx, setPreparingIdx] = useState(0)
+  const [questions, setQuestions] = useState(QUESTIONS_7)
+  const [logoSrc, setLogoSrc] = useState(LOGO_URL)
+  const scrollRef = useRef(null)
 
-  useEffect(()=>{ document.title='神農原養 — AI靈膳魔導師'; },[]);
+  useEffect(()=>{ document.title = '神農原養 — AI靈膳魔導師' }, [])
 
   const withVariants = () => QUESTIONS_7.map(q => {
-    const vs = (Q_VARIANTS as any)[q.id];
-    if (!vs) return q;
-    const v = vs[Math.floor(Math.random()*vs.length)];
-    const opts = v.options.map((o: any, i: number)=>({ key: q.options[i]?.key || String.fromCharCode(65+i), label: o.label, score: o.score }));
-    return { id: q.id, title: v.title, options: opts } as Q;
-  });
+    const vs = Q_VARIANTS[q.id]; if (!vs) return q
+    const v = vs[Math.floor(Math.random()*vs.length)]
+    const opts = v.options.map((o, i)=>({ key: q.options[i]?.key || String.fromCharCode(65+i), label: o.label, score: o.score }))
+    return { id: q.id, title: v.title, options: opts }
+  })
 
   const start = () => {
-    const base = withVariants();
-    const arr = ASK_IN_ORDER ? base : shuffleArr(base);
-    setQuestions(arr);
-    setAnswers([]);
-    setIdx(0);
-    setQuestionTyped(false);
-    setOptionsForIdx(null);
-    setPhase('preparing');
-  };
+    const base = withVariants()
+    const arr = ASK_IN_ORDER ? base : shuffleArr(base)
+    setQuestions(arr); setAnswers([]); setIdx(0); setQuestionTyped(false); setOptionsForIdx(null); setPhase('preparing')
+  }
 
   // 準備動畫
   useEffect(()=>{
-    if (phase !== 'preparing') return;
-    setQuestionTyped(false); setOptionsForIdx(null); setPreparingIdx(0);
-    const rot = setInterval(()=> setPreparingIdx(i => (i+1)%PREPARING_TEXTS.length), PREP_ROTATE_MS);
-    const t = setTimeout(()=>{ clearInterval(rot); setPhase('asking'); }, PREP_TOTAL_MS);
-    return ()=>{ clearInterval(rot); clearTimeout(t); };
-  },[phase]);
+    if (phase !== 'preparing') return
+    setQuestionTyped(false); setOptionsForIdx(null); setPreparingIdx(0)
+    const rot = setInterval(()=> setPreparingIdx(i => (i+1)%PREPARING_TEXTS.length), PREP_ROTATE_MS)
+    const t = setTimeout(()=>{ clearInterval(rot); setPhase('asking') }, PREP_TOTAL_MS)
+    return ()=>{ clearInterval(rot); clearTimeout(t) }
+  }, [phase])
 
-  // 自動捲到最底
+  // 自動捲到底
   useEffect(()=>{
-    const el = scrollRef.current; if (!el) return;
-    try { el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); } catch { el.scrollTop = el.scrollHeight; }
-  },[answers.length, idx, phase, questionTyped, optionsForIdx]);
+    const el = scrollRef.current; if (!el) return
+    try { el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) } catch { el.scrollTop = el.scrollHeight }
+  }, [answers.length, idx, phase, questionTyped, optionsForIdx])
 
-  const onChoose = (q: Q, opt: Opt) => {
-    setAnswers(prev => [...prev, { qid: q.id, title: q.title, option: opt }]);
-    setTimeout(()=>{ (idx+1 >= questions.length) ? setPhase('analyzing') : setIdx(i=>i+1); setQuestionTyped(false); setOptionsForIdx(null); }, 200);
-  };
+  const onChoose = (q, opt) => {
+    setAnswers(prev => [...prev, { qid: q.id, title: q.title, option: opt }])
+    setTimeout(()=>{ (idx+1 >= questions.length) ? setPhase('analyzing') : setIdx(i=>i+1); setQuestionTyped(false); setOptionsForIdx(null) }, 200)
+  }
 
-  const total = useMemo(()=> sumScore(answers), [answers]);
-  const focus = useMemo(()=> pickFocus(answers), [answers]);
-  const prof  = useMemo(()=> profileByScore(total||0), [total]);
-  const score2 = useMemo(()=> String(total).padStart(2,'0'), [total]);
+  const total = useMemo(()=> sumScore(answers), [answers])
+  const prof = useMemo(()=> profileByScore(total||0), [total])
 
-  useEffect(()=>{
-    if (phase !== 'analyzing') return;
-    const t = setTimeout(()=> setPhase('result'), 1800);
-    return ()=> clearTimeout(t);
-  },[phase]);
+  useEffect(()=>{ if (phase !== 'analyzing') return; const t=setTimeout(()=> setPhase('result'), 1800); return ()=> clearTimeout(t) }, [phase])
 
-  const totalQuestions = questions.length;
+  const totalQuestions = questions.length
   const progressPct = useMemo(()=>{
-    const done = phase==='result' || phase==='analyzing';
-    const answered = done ? totalQuestions : answers.length;
-    if (totalQuestions<=0) return 0; return Math.max(0, Math.min(100, Math.round((answered/totalQuestions)*100)));
-  },[answers.length, phase, totalQuestions]);
+    const done = phase==='result' || phase==='analyzing'
+    const answered = done ? totalQuestions : answers.length
+    if (totalQuestions<=0) return 0
+    return Math.max(0, Math.min(100, Math.round((answered/totalQuestions)*100)))
+  }, [answers.length, phase, totalQuestions])
 
-  const lineDeepLink = useMemo(()=>{
-    const LINE_ID_ENC = '%40081cvuqw';
-    const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-    const msg = `${score2}`; // 僅分數（兩位數）
-    const mobile = `https://line.me/R/oaMessage/${LINE_ID_ENC}/?${encodeURIComponent(msg)}`;
-    const desktop = `https://line.me/ti/p/${LINE_ID_ENC}`;
-    return isMobile ? mobile : desktop;
-  },[score2]);
+  // feature split to force line-break for "特徵："
+  const [featIntro, featDetail] = useMemo(()=>{
+    const parts = (prof.feature || '').split('特徵：')
+    return [parts[0]?.trim(), parts[1]?.trim()]
+  }, [prof.feature])
 
   return (
     <div className="min-h-[100dvh] bg-white text-gray-900">
@@ -306,7 +246,7 @@ export default function App(){
       <div className="fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 md:px-6 py-3 md:py-4">
           <div className="flex items-center gap-3">
-            <img src={logoSrc} alt="logo" className="h-6 w-auto" onError={(e) => (e.currentTarget.src = DEFAULT_LOGO_DATA_URL)} />
+            <img src={logoSrc} alt="logo" className="h-6 w-auto" onError={(e)=> (e.currentTarget.src = DEFAULT_LOGO_DATA_URL)} />
             <div>
               <h1 className="text-base md:text-lg font-semibold leading-tight" style={{ color: BRAND_PRIMARY }}>神農原養 — AI靈膳魔導師</h1>
               <p className="text-sm md:text-base" style={{ color: BRAND_ACCENT }}>專屬燕窩攻略與搭配建議</p>
@@ -327,7 +267,9 @@ export default function App(){
                 <motion.div key="intro" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
                   <div className="w-full flex justify-start">
                     <div className="max-w-[85%] rounded-2xl p-4 shadow-sm bg-white">
-                      <p className="mt-2 text-[15px] md:text-base leading-7 text-gray-800 max-w-prose">透過簡單問答，「靈膳魔導師」將為您分析您來自哪一個靈系，結束後請依指示領取您專屬的「靈膳魔法捲軸」，內有適合您的「凰啼初盞 燕窩即食瓶」搭配建議，打造您的每日靈膳儀式感。</p>
+                      <p className="mt-2 text-[15px] md:text-base leading-7 text-gray-800 max-w-prose">
+                        透過簡單問答，「靈膳魔導師」將為您分析您來自哪一個靈系，結束後請依指示領取您專屬的「靈膳魔法捲軸」，內有適合您的「凰啼初盞 燕窩即食瓶」搭配建議，打造您的每日靈膳儀式感。
+                      </p>
                       <button className="mt-3 px-4 py-2 rounded-xl shadow-sm border transition text-base" style={{ borderColor: BRAND_PRIMARY, color: BRAND_PRIMARY }} onClick={start}>開始測驗</button>
                     </div>
                   </div>
@@ -371,7 +313,11 @@ export default function App(){
                       <div className="w-full">
                         <div className="text-base font-medium" style={{ color: BRAND_PRIMARY }}>AI靈膳魔導師</div>
                         <div className="mt-1 text-base font-medium" style={{ color: BRAND_PRIMARY }}>
-                          <Typewriter text={questions[idx].title} startKey={`${idx}-${phase}`} onDone={() => { setQuestionTyped(true); setTimeout(() => setOptionsForIdx(idx), OPTIONS_REVEAL_DELAY_MS); }} />
+                          <Typewriter
+                            text={questions[idx].title}
+                            startKey={`${idx}-${phase}`}
+                            onDone={() => { setQuestionTyped(true); setTimeout(() => setOptionsForIdx(idx), OPTIONS_REVEAL_DELAY_MS) }}
+                          />
                         </div>
                       </div>
                       {optionsForIdx === idx && (
@@ -431,11 +377,23 @@ export default function App(){
                             <ScoreGauge value={total} max={MAX_SCORE} />
                           </div>
                         </div>
-                        <p className="text-gray-800 leading-7">{(prof.feature.split('特徵：')[0] || prof.feature)}</p>
-                        <div className="text-base md:text-lg font-semibold" style={{ color: BRAND_PRIMARY }}>靈膳魔導師語錄：{prof.quote}</div>
-                        <div className="text-sm text-gray-700">點擊下方按鈕加入官方 LINE，獲取更多資訊</div>
+                        <div className="text-gray-800 leading-7">
+                          <p className="m-0">{featIntro || prof.feature}</p>
+                          {featDetail && (<p className="m-0">特徵： {featDetail}</p>)}
+                        </div>
+
+                        <div className="text-base md:text-lg font-semibold" style={{ color: BRAND_PRIMARY }}>
+                          靈膳魔導師語錄：{prof.quote}
+                        </div>
+
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <a className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition text-white text-base" style={{ background: BRAND_ACCENT, borderColor: BRAND_ACCENT }} href="#" onClick={(e) => { e.preventDefault(); window.open(lineDeepLink,'_blank'); }}>
+                          <a
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border transition text-white text-base"
+                            style={{ background: BRAND_ACCENT, borderColor: BRAND_ACCENT }}
+                            href={LINE_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden>
                               <rect x="2" y="2" width="60" height="60" rx="14" ry="14" fill="#06C755" />
                               <text x="32" y="42" fontSize="22" fontFamily="Arial, Helvetica, sans-serif" fill="#fff" textAnchor="middle">LINE</text>
@@ -453,5 +411,5 @@ export default function App(){
         </div>
       </div>
     </div>
-  );
+  )
 }
