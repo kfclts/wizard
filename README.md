@@ -1,13 +1,16 @@
 # 神農原養 — AI靈膳魔導師
 
-## 安裝與啟動
+React + Vite + Tailwind + Framer Motion（純前端）。
+
+## 快速開始
 ```bash
 npm i
 npm run dev
 ```
 
-## 可調整參數（src/App.tsx 檔案上方）
-- `LOGO_URL`：左上角 Logo 路徑
-- `ASK_IN_ORDER`: `true` 依序出題；`false` 隨機出題
-- `TYPE_SPEED_MS`、`OPTIONS_REVEAL_DELAY_MS`、`PREP_ROTATE_MS`、`PREP_TOTAL_MS`：打字/顯示速度
-- `MAX_SCORE`：Gauge 的滿分（預設 21）
+## 可調整參數（src/App.tsx 最上方）
+- `LOGO_URL`：可放企業 SVG / data:URL
+- `ASK_IN_ORDER`：true 依序出題；false 隨機
+- `TYPE_SPEED_MS`、`OPTIONS_REVEAL_DELAY_MS`：打字與選項出現節奏
+- `PREP_ROTATE_MS`、`PREP_TOTAL_MS`：「思考中／挑選題目／生成題目中」輪替與總時長
+- `MAX_SCORE`：Gauge 圓形徽章滿分（預設 21）
